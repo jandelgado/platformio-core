@@ -45,7 +45,10 @@ from platformio.package.manager.core import get_core_package_dir, inject_contrib
         "are connected. Default is 0 which means never auto shutdown"
     ),
 )
-def cli(port, host, no_open, shutdown_timeout):
+@click.option("--base-path", type=str, default="", 
+    help="URL base path for static content, defaults to web-root"
+)
+def cli(port, host, no_open, shutdown_timeout, base_path):
     # pylint: disable=import-error, import-outside-toplevel
 
     # import contrib modules
@@ -54,6 +57,7 @@ def cli(port, host, no_open, shutdown_timeout):
     from autobahn.twisted.resource import WebSocketResource
     from twisted.internet import reactor
     from twisted.web import server
+    from twisted.web.resource import Resource
     from twisted.internet.error import CannotListenError
 
     from platformio.commands.home.rpc.handlers.app import AppRPC
@@ -86,6 +90,11 @@ def cli(port, host, no_open, shutdown_timeout):
 
     root = WebRoot(contrib_dir)
     root.putChild(b"wsrpc", WebSocketResource(factory))
+
+    if base_path != "":
+        oldroot = root
+        root = Resource()
+        root.putChild(bytes(base_path, "utf-8"), oldroot)
     site = server.Site(root)
 
     # hook for `platformio-node-helpers`
@@ -93,7 +102,7 @@ def cli(port, host, no_open, shutdown_timeout):
         return
 
     already_started = is_port_used(host, port)
-    home_url = "http://%s:%d" % (host, port)
+    home_url = "http://%s:%d/%s" % (host, port, base_path)
     if not no_open:
         if already_started:
             click.launch(home_url)
